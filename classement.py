@@ -1,51 +1,51 @@
 import numpy as np
 import pandas as pd
 
-# Class to load and prepare data
-class LoadData:
-    def __init__(self, train_path, test_path, vocab_path, label_path):
-        self.train_path = train_path
-        self.test_path = test_path
-        self.vocab_path = vocab_path
-        self.label_path = label_path
+# Loading each classes file into our program
+class Load:
+    def __init__(self, train, test, vocab, label):
+        self.train = train
+        self.test = test
+        self.vocab = vocab
+        self.label = label
     
     def load_data(self):
-        data_train = np.load(self.train_path, allow_pickle=True)
-        data_test = np.load(self.test_path, allow_pickle=True)
-        vocab_map = np.load(self.vocab_path, allow_pickle=True)
+        data_train = np.load(self.train, allow_pickle=True)
+        data_test = np.load(self.test, allow_pickle=True)
+        vocab_map = np.load(self.vocab, allow_pickle=True)
         
-        label_train = pd.read_csv(self.label_path, delimiter=',').iloc[:, 1].values  
+        label_train = pd.read_csv(self.label, delimiter=',').iloc[:, 1].values  
         
         return data_train, data_test, vocab_map, label_train
 
-# Class for preprocessing, including normalization and oversampling
-class ProcessData:
-    def normalize_data(self, train_matrix, test_matrix):
-        mean = np.mean(train_matrix, axis=0)
-        standard = np.std(train_matrix, axis=0)
-        train_normalized = (train_matrix - mean) / (standard + 1e-8)
-        test_normalized = (test_matrix - mean) / (standard + 1e-8)
-        return train_normalized, test_normalized
+# Processing the data by normalising, splitting and oversampling
+class Data:
+    def normalize_data(self, train_data , test_data):
+        avg  = np.mean(train_data, axis=0)
+        standard_dev = np.std(train_data, axis=0)
+        normalized_train  = (train_data - avg ) / (standard_dev + 1e-8)
+        normalized_test = (test_data - avg ) / (standard_dev + 1e-8)
+        return normalized_train, normalized_test
     
-    def split_data(self, X, y, test_size=0.2):
-        split_idx = int(X.shape[0] * (1 - test_size))
-        return X[:split_idx], X[split_idx:], y[:split_idx], y[split_idx:]
+    def split_data(self, data_train, label_train, test_size=0.2):
+        idx = int(data_train.shape[0] * (1 - test_size))
+        return data_train[:idx], data_train[idx:], label_train[:idx], label_train[idx:]
     
     def oversample_minority_class(self, X_train, y_train):
         X_minority = X_train[y_train == 1]
         y_minority = y_train[y_train == 1]
         
-        X_train_balanced = np.concatenate([X_train, X_minority], axis=0)
-        y_train_balanced = np.concatenate([y_train, y_minority], axis=0)
+        X_balanced = np.concatenate([X_train, X_minority], axis=0)
+        y_balanced = np.concatenate([y_train, y_minority], axis=0)
         
-        return X_train_balanced, y_train_balanced
+        return X_balanced, y_balanced
 
 # Logistic regression model with L2 regularization
 class LogisticRegressionModel:
-    def __init__(self, learning_rate, iterations, lambda_l2, threshold):
-        self.learning_rate = learning_rate
-        self.iterations = iterations
-        self.lambda_l2 = lambda_l2
+    def __init__(self, learn_rate, iter, l2, threshold):
+        self.learn_rate = learn_rate
+        self.iter = iter
+        self.l2 = l2
         self.threshold = threshold
         self.weight = None
         self.bias = 0
@@ -53,15 +53,15 @@ class LogisticRegressionModel:
     def sigmoid(self, z):
         return 1 / (1 + np.exp(-z))
     
-    def compute_loss_with_l2(self, X, y):
+    def compute_loss(self, X, y):
         n_samples = X.shape[0]
         z = np.dot(X, self.weight) + self.bias
         predictions = self.sigmoid(z)
         loss = - (1 / n_samples) * np.sum(y * np.log(predictions + 1e-8) + (1 - y) * np.log(1 - predictions + 1e-8))
-        l2_penalty = (self.lambda_l2 / (2 * n_samples)) * np.sum(self.weight**2)
+        l2_penalty = (self.l2 / (2 * n_samples)) * np.sum(self.weight**2)
         return loss + l2_penalty
 
-    def compute_class_weights(self, y):
+    def compute_weights(self, y):
         class_counts = np.bincount(y.astype(int))
         total_samples = len(y)
         class_weights = total_samples / (len(class_counts) * class_counts)
@@ -71,23 +71,23 @@ class LogisticRegressionModel:
         n_samples = X.shape[0]
         self.weight = np.zeros(X.shape[1])
         
-        for i in range(self.iterations):
+        for i in range(self.iter):
             z = np.dot(X, self.weight) + self.bias
             predictions = self.sigmoid(z)
             weights = class_weights[y.astype(int)]
             
-            weight_gradient = (1 / n_samples) * np.dot(X.T, weights * (predictions - y)) + (self.lambda_l2 / n_samples) * self.weight
+            weight_gradient = (1 / n_samples) * np.dot(X.T, weights * (predictions - y)) + (self.l2 / n_samples) * self.weight
             bias_gradient = (1 / n_samples) * np.sum(weights * (predictions - y))
             
-            self.weight -= self.learning_rate * weight_gradient
-            self.bias -= self.learning_rate * bias_gradient
+            self.weight -= self.learn_rate * weight_gradient
+            self.bias -= self.learn_rate * bias_gradient
             
             if i % 100 == 0:
-                loss = self.compute_loss_with_l2(X, y)
+                loss = self.compute_loss(X, y)
                 print(f"Iteration {i}, Loss with L2: {loss}")
 
     def train(self, X, y):
-        class_weights = self.compute_class_weights(y)
+        class_weights = self.compute_weights(y)
         self.gradient_descent(X, y, class_weights)
     
     def predict(self, X):
@@ -106,26 +106,26 @@ class LogisticRegressionModel:
         
         return precision, recall, f1_score, accuracy
 
-# Main function
+# main function
 def main():
     # Parameters
-    learning_rate = 0.001
+    learn_rate = 0.001
     iterations = 1000
     lambda_l2 = 0.01
     threshold = 0.645
     
     # Load data
-    loader = LoadData('./data_train.npy', './data_test.npy', './vocab_map.npy', './label_train.csv')
-    data_train, data_test, vocab_map, label_train = loader.load_data()
+    load = Load('./data_train.npy', './data_test.npy', './vocab_map.npy', './label_train.csv')
+    data_train, data_test, vocab_map, label_train = load.load_data()
     
     # Process data
-    preprocessor = ProcessData()
-    data_train_normalized, data_test_normalized = preprocessor.normalize_data(data_train, data_test)
-    X_train, X_val, y_train, y_val = preprocessor.split_data(data_train_normalized, label_train)
-    X_train_balanced, y_train_balanced = preprocessor.oversample_minority_class(X_train, y_train)
+    data = Data()
+    data_train_normalized, data_test_normalized = data.normalize_data(data_train, data_test)
+    X_train, X_val, y_train, y_val = data.split_data(data_train_normalized, label_train)
+    X_train_balanced, y_train_balanced = data.oversample_minority_class(X_train, y_train)
     
     # Initialize model
-    model = LogisticRegressionModel(learning_rate, iterations, lambda_l2, threshold)
+    model = LogisticRegressionModel(learn_rate, iterations, lambda_l2, threshold)
     
     # Train model
     model.train(X_train_balanced, y_train_balanced)
